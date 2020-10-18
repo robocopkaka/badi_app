@@ -9,48 +9,50 @@ class DaylightHours
       Hash.new { |key, value| key[value] = Hash.new(&key.default_proc) }
     params.each do |neighbourhood|
       nb_name = neighbourhood['neighbourhood']
-      neighbourhoods_hash[nb_name]['start_index'] = main_array.length
       create_array(main_array, neighbourhoods_hash, neighbourhood)
-      neighbourhoods_hash[nb_name]['end_index'] = main_array.length - 1
+      binding.pry
+      neighbourhoods_hash[nb_name]['index'] = main_array.length - 1
     end
     { hash: neighbourhoods_hash.to_json, array: main_array }
   end
 
   def self.create_array(main_array, neighbourhoods_hash, neighbourhood)
+    nb_array = []
     name = neighbourhood['neighbourhood']
     neighbourhood['buildings'].each do |building|
-      main_array.push Array(0..building['apartments_count'] - 1)
+      nb_array.push Array(0..building['apartments_count'] - 1)
 
       neighbourhoods_hash[name]['buildings'][building['name']] =
-        main_array.length - 1
+        nb_array.length - 1
     end
+    main_array.push(nb_array)
   end
 
-  def self.higher_to_left?(cache_handler, building, apartment_number, first)
-    array = cache_handler.get(:nb_array)
-    return true if building == first
+  def self.higher_to_left?(cache_handler, building, apartment_number, nb_index)
+    array = cache_handler.get(:nb_array)[nb_index]
+    return true if building == 0
 
-    (building - 1).downto(first) do |index|
+    (building - 1).downto(0) do |index|
       return false unless array[index][apartment_number].nil?
     end
 
     true
   end
 
-  def self.higher_to_right?(cache_handler, building, apartment_number, last)
-    array = cache_handler.get(:nb_array)
-    return true if building == last
+  def self.higher_to_right?(cache_handler, building, apartment_number, nb_index)
+    array = cache_handler.get(:nb_array)[nb_index]
+    return true if building == array.length - 1
 
-    (building + 1).upto(last) do |index|
+    (building + 1).upto(array.length - 1) do |index|
       return false unless array[index][apartment_number].nil?
     end
 
     true
   end
 
-  def self.add_hours_left(apartment_number, building_index, first)
+  def self.add_hours_left(apartment_number, building_index)
     array = []
-    if building_index == first
+    if building_index == 0
       array.push(0)
     else
       array.push(apartment_number)
@@ -58,9 +60,9 @@ class DaylightHours
     array
   end
 
-  def self.add_hours_right(apartment_number, building_index, last)
+  def self.add_hours_right(apartment_number, building_index, last_index)
     array = []
-    if building_index == last
+    if building_index == last_index
       array.push(0)
     else
       array.push(apartment_number)

@@ -10,13 +10,20 @@ class DaylightApp < Sinatra::Application
   set :port, 3000
   enable :logging, :sessions
   set :dc, Dalli::Client.new('localhost:11211')
-  attr_accessor :app_instance
+  attr_reader :nb_hash
 
   helpers do
     def json_params
       JSON.parse(request.body.read)
     rescue JSONError
       halt 400, { message: 'Invalid JSON' }.to_json
+    end
+
+    def extract_details_from_hash(hash)
+      neighbourhood = hash['neighbourhood']
+      building = hash['building']
+      apartment = hash['apartment_number'].to_i - 1
+      [neighbourhood, building, apartment]
     end
   end
 
@@ -31,7 +38,7 @@ class DaylightApp < Sinatra::Application
     halt 400, { message: error }.to_json if error
     result = DaylightHours.prep_array(parameters)
     hash = result[:hash]
-    array = result[:hash]
+    array = result[:array]
 
     set_cache(:nb_array, array)
     set_cache(:nb_hash, hash)
@@ -39,39 +46,52 @@ class DaylightApp < Sinatra::Application
 
   get '/daylight_hours' do
     cache_handler = settings.dc
-    query = json_params
-    neighbourhood = query['neighbourhood']
-    building = query['building']
-    apartment_number = query['apartment_number'].to_i
-    hash = JSON.parse(cache_handler.get(:nb_hash))
-    building_index = hash[neighbourhood]['buildings'][building]
-    first = hash[neighbourhood]['start_index']
-    last = hash[neighbourhood]['end_index']
+    @nb_hash = JSON.parse(cache_handler.get(:nb_hash))
+    neighbourhood, building, apartment =
+      extract_details_from_hash(json_params)
+    find_building(neighbourhood, building)
+    building_index = @nb_hash[neighbourhood]['buildings'][building]
+    nb_index = @nb_hash[neighbourhood]['index']
+    last = @nb_hash[neighbourhood]['buildings'].length - 1
 
-    higher_to_left = DaylightHours
-                     .higher_to_left?(
-                       cache_handler,
-                       building_index,
-                       apartment_number - 1,
-                       first
-                     )
-    higher_to_right = DaylightHours
-                      .higher_to_right?(
-                        cache_handler,
-                        building_index,
-                        apartment_number - 1,
-                        last
-                      )
+    higher_left, higher_right =
+      higher_to_sides(cache_handler, building_index, apartment, nb_index)
+
+    get_hours(apartment, building_index, last, higher_left, higher_right)
+  end
+
+  private
+
+  def higher_to_sides(cache_handler, building_index, apartment, nb_index)
+    higher_left = DaylightHours.higher_to_left?(
+      cache_handler, building_index, apartment, nb_index
+    )
+    higher_right = DaylightHours.higher_to_right?(
+      cache_handler, building_index, apartment, nb_index
+    )
+    [higher_left, higher_right]
+  end
+
+  def get_hours(apartment, building_index, last, higher_left, higher_right)
     east_hours = west_hours = []
-    if higher_to_left
+    if higher_left
       east_hours = DaylightHours
-                   .add_hours_left(apartment_number - 1, building_index, first)
+                   .add_hours_left(apartment, building_index)
     end
-    if higher_to_right
+    if higher_right
       west_hours = DaylightHours
-                   .add_hours_right(apartment_number - 1, building_index, last)
+                   .add_hours_right(apartment, building_index, last)
     end
 
     DaylightHours.compute_total_hours(east_hours, west_hours)
+  end
+
+  def find_building(neighbourhood, building)
+    if @nb_hash[neighbourhood].nil?
+      halt 400, { message: 'Neighbourhood not found' }.to_json
+    end
+    return unless @nb_hash[neighbourhood]['buildings'][building].nil?
+
+    halt 400, { message: 'Building not found' }.to_json
   end
 end
