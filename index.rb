@@ -19,14 +19,42 @@ class DaylightApp < Sinatra::Application
 
   def set_cache key, value
     settings.dc.set(key, value)
-    return value
+    value
   end
   
   get '/init' do
-    set_cache(:app_instance, DaylightHours.new(json_params["neighbourhoods"]))
+    result = DaylightHours.prep_array(json_params["neighbourhoods"])
+    hash = result[:hash]
+    array = result[:hash]
+    error = result[:error]
+    halt 400, { message: error }.to_json if error
+    set_cache(:nb_array, array)
+    set_cache(:nb_hash, hash)
   end
   
   get '/daylight_hours' do
-    settings.dc.get(:app_instance)
+    cache_handler = settings.dc
+    query = json_params
+    neighbourhood = query["neighbourhood"]
+    building = query["building"]
+    apartment_number = query["apartment_number"].to_i
+    hash = JSON.parse(cache_handler.get(:nb_hash))
+    building_index = hash[neighbourhood]["buildings"][building]
+    first = hash[neighbourhood]["start_index"]
+    last = hash[neighbourhood]["end_index"]
+    # binding.pry
+    higher_to_left = DaylightHours
+      .higher_to_left?(
+        cache_handler, building_index, apartment_number - 1, first
+      )
+    higher_to_right = DaylightHours
+      .higher_to_right?(
+        cache_handler, building_index, apartment_number - 1, last
+      )
+    east_hours = west_hours = []
+    east_hours = DaylightHours.add_hours_left(apartment_number - 1, building_index, first) if higher_to_left
+    west_hours = DaylightHours.add_hours_right(apartment_number - 1, building_index, last) if higher_to_right
+    
+    DaylightHours.compute_total_hours(east_hours, west_hours)
   end
 end
