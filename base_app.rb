@@ -6,9 +6,9 @@ require 'dalli'
 require_relative 'daylight_hours'
 
 # entry point for app
-class DaylightApp < Sinatra::Application
+class BaseApp < Sinatra::Application
   set :port, 3000
-  enable :logging, :sessions
+  enable :logging
   set :dc, Dalli::Client.new('localhost:11211')
   attr_reader :nb_hash
 
@@ -61,7 +61,7 @@ class DaylightApp < Sinatra::Application
   end
 
   private
-  
+
   def fetch_hash(cache_handler)
     hash = cache_handler.get(:nb_hash)
     halt 400, { message: "You need to run 'init'" }.to_json if hash.nil?
