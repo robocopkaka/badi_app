@@ -15,14 +15,14 @@ class DaylightApp < Sinatra::Application
   helpers do
     def json_params
       JSON.parse(request.body.read)
-    rescue JSONError
+    rescue StandardError
       halt 400, { message: 'Invalid JSON' }.to_json
     end
 
-    def extract_details_from_hash(hash)
-      neighbourhood = hash['neighbourhood']
-      building = hash['building']
-      apartment = hash['apartment_number'].to_i - 1
+    def extract_details_from_params
+      neighbourhood = params['neighbourhood']
+      building = params['building']
+      apartment = params['apartment_number'].to_i - 1
       [neighbourhood, building, apartment]
     end
   end
@@ -32,7 +32,7 @@ class DaylightApp < Sinatra::Application
     value
   end
 
-  get '/init' do
+  post '/init' do
     parameters = json_params['neighbourhoods']
     error = DaylightHours.validate_apartment_height(parameters)
     halt 400, { message: error }.to_json if error
@@ -44,11 +44,11 @@ class DaylightApp < Sinatra::Application
     set_cache(:nb_hash, hash)
   end
 
-  get '/daylight_hours' do
+  get '/getSunlightHours' do
     cache_handler = settings.dc
-    @nb_hash = JSON.parse(cache_handler.get(:nb_hash))
+    @nb_hash = fetch_hash(cache_handler)
     neighbourhood, building, apartment =
-      extract_details_from_hash(json_params)
+      extract_details_from_params
     find_building(neighbourhood, building)
     building_index = @nb_hash[neighbourhood]['buildings'][building]
     nb_index = @nb_hash[neighbourhood]['index']
@@ -61,6 +61,12 @@ class DaylightApp < Sinatra::Application
   end
 
   private
+  
+  def fetch_hash(cache_handler)
+    hash = cache_handler.get(:nb_hash)
+    halt 400, { message: "You need to run 'init'" }.to_json if hash.nil?
+    JSON.parse(hash)
+  end
 
   def higher_to_sides(cache_handler, building_index, apartment, nb_index)
     higher_left = DaylightHours.higher_to_left?(

@@ -10,8 +10,9 @@ class DaylightHours
     params.each do |neighbourhood|
       nb_name = neighbourhood['neighbourhood']
       create_array(main_array, neighbourhoods_hash, neighbourhood)
-      binding.pry
       neighbourhoods_hash[nb_name]['index'] = main_array.length - 1
+      neighbourhoods_hash[nb_name]['apartments_height'] =
+        neighbourhood['apartments_height']
     end
     { hash: neighbourhoods_hash.to_json, array: main_array }
   end
@@ -30,7 +31,7 @@ class DaylightHours
 
   def self.higher_to_left?(cache_handler, building, apartment_number, nb_index)
     array = cache_handler.get(:nb_array)[nb_index]
-    return true if building == 0
+    return true if building.zero?
 
     (building - 1).downto(0) do |index|
       return false unless array[index][apartment_number].nil?
@@ -52,7 +53,7 @@ class DaylightHours
 
   def self.add_hours_left(apartment_number, building_index)
     array = []
-    if building_index == 0
+    if building_index.zero?
       array.push(0)
     else
       array.push(apartment_number)
@@ -71,7 +72,7 @@ class DaylightHours
   end
 
   def self.compute_total_hours(east_hours, west_hours)
-    return '11:14:00-14:14:00' if east_hours.empty? & west_hours.empty?
+    return '11:14:00 - 14:14:00' if east_hours.empty? & west_hours.empty?
 
     start_hour_east = east_hours.first.to_s
     end_hour_west = west_hours.first.to_s

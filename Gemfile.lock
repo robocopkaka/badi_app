@@ -12,6 +12,8 @@ GEM
     rack (2.2.3)
     rack-protection (2.0.8.1)
       rack
+    rack-test (1.1.0)
+      rack (>= 1.0, < 3)
     rspec (3.9.0)
       rspec-core (~> 3.9.0)
       rspec-expectations (~> 3.9.0)
@@ -41,6 +43,7 @@ PLATFORMS
 DEPENDENCIES
   dalli
   pry
+  rack-test
   rspec
   shotgun
   sinatra
