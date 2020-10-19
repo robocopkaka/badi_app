@@ -1,4 +1,4 @@
 # frozen_string_literal: true
 
-require_relative 'index'
+require_relative 'base_app'
 run DaylightApp
